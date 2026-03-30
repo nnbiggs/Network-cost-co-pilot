@@ -1,0 +1,6 @@
+# Used when deployed on Streamlit Community Cloud or similar.
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

@@ -15,6 +15,34 @@ The **PwC logo** is loaded from `assets/pwc_logo.svg` (see `assets/README.md` fo
 
 ---
 
+## Deploy (Vercel + Streamlit)
+
+**Vercel cannot run Streamlit** (it needs a long-lived Python process and WebSockets). This repo is set up so **Vercel** hosts a **branded landing page** that links to the app hosted on **Streamlit Community Cloud** (or any URL you choose).
+
+### 1) Host the Streamlit app
+
+1. Push this repo to GitHub (if it is not already).
+2. Go to [Streamlit Community Cloud](https://share.streamlit.io/) and **New app** → connect the repo.
+3. Set **Main file path** to `app.py`.
+4. Deploy and copy the app URL (e.g. `https://your-app.streamlit.app`).
+
+### 2) Connect your existing Vercel project
+
+1. Import or open the **same GitHub repo** in Vercel (project you already have).
+2. **Settings → Environment Variables** → add:
+   - **Name:** `STREAMLIT_APP_URL`
+   - **Value:** your Streamlit URL (e.g. `https://your-app.streamlit.app`)
+3. **Settings → General** → confirm **Build & Development**:
+   - **Framework Preset:** Other (or leave auto; `vercel.json` drives the build).
+   - Build uses `npm run build` and outputs the `out/` folder per `vercel.json`.
+4. Redeploy. The site will show the landing page; **Launch application** uses `STREAMLIT_APP_URL`.
+
+Local check: `npm run build` → open `out/index.html`.
+
+If Vercel tries to run a **Python** install from `requirements.txt` and conflicts, set **Install Command** in the Vercel project to `npm install` only (or leave default; `vercel.json` should override with `installCommand`).
+
+---
+
 ## Live demo talk track (partner / executive narrative)
 
 Use this sequence while clicking through the guided phases:
@@ -67,5 +95,3 @@ Set `OPENAI_API_KEY` to enrich long-form narrative generation in `insights.py`. 
 ---
 
 *Experience created by Nigel Biggs.*
-# trigger deploy
-# trigger deploy

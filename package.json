@@ -1,0 +1,8 @@
+{
+  "name": "pwc-network-cost-intelligence",
+  "private": true,
+  "description": "Vercel static landing; Streamlit app runs on Streamlit Cloud or another host.",
+  "scripts": {
+    "build": "node scripts/vercel-build.mjs"
+  }
+}
