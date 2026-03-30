@@ -1,7 +1,13 @@
-"""AI-powered network cost optimization co-pilot — guided analytics, benchmarks, simulation."""
+"""
+PwC One — Network Cost Intelligence: Streamlit client experience for telecom cost diagnostics.
+
+Live demo talk track: see README.md section "Live demo talk track".
+"""
 from __future__ import annotations
 
 import io
+from collections import defaultdict
+from pathlib import Path
 from typing import Any, Optional
 
 import pandas as pd
@@ -37,11 +43,25 @@ import ingestion
 from pipeline import analyze_dataframes
 from taxonomy import CATEGORIES
 from ui_copy import METRIC_HELP, business_category_name, top_concentration_phrase
+from pwc_experience import (
+    DEMO_PHASES,
+    PRODUCT_SUBTITLE,
+    PRODUCT_TITLE,
+    SECURE_WORKSPACE_NOTE,
+    STORYLINE_COMPRESSION,
+    TRUST_STRIP,
+    VALUE_PROPOSITION,
+    build_executive_panel,
+    phase_headline,
+)
 from user_help import render_sidebar_help_teaser, render_user_guide
 
+_ASSETS = Path(__file__).resolve().parent / "assets"
+PWC_LOGO_PATH = _ASSETS / "pwc_logo.svg"
+
 st.set_page_config(
-    page_title="Network cost co-pilot",
-    page_icon="◆",
+    page_title="PwC One — Network Cost Intelligence",
+    page_icon=str(PWC_LOGO_PATH) if PWC_LOGO_PATH.exists() else "◆",
     layout="wide",
     initial_sidebar_state="auto",
 )
@@ -50,11 +70,19 @@ RISK_COLOR = "#c0392b"
 OPP_COLOR = "#1e8449"
 NEUTRAL = "#64748b"
 
-STEP_LABELS = [
-    "1 · Data",
-    "2 · Spending",
-    "3 · Comparison",
-    "4 · Actions",
+PHASE_OVERVIEW = "Overview"
+PHASE_INGEST = "1 · Ingest & standardize"
+PHASE_BASELINE = "2 · Integrated cost baseline"
+PHASE_BENCHMARK = "3 · Peer benchmark comparison"
+PHASE_INSIGHTS = "4 · AI-assisted gap insights"
+PHASE_ROADMAP = "5 · Prioritized action roadmap"
+PHASE_LABELS = [
+    PHASE_OVERVIEW,
+    PHASE_INGEST,
+    PHASE_BASELINE,
+    PHASE_BENCHMARK,
+    PHASE_INSIGHTS,
+    PHASE_ROADMAP,
 ]
 
 CANON_W = [
@@ -168,30 +196,52 @@ def render_executive_summary(result: dict[str, Any]) -> None:
     lines = executive_summary_lines(base, idx, opps)
     insight_b = benchmark_plain_insight(var, idx)
 
-    st.markdown("### At-a-glance")
+    st.markdown("### Executive snapshot")
     st.markdown(lines["peer"])
     st.markdown(lines["top"])
     st.markdown(lines["savings"])
     st.markdown(insight_b)
 
 
-def _step_number(step: str) -> int:
+def _phase_number(phase: str) -> int:
     try:
-        return STEP_LABELS.index(step) + 1
+        return PHASE_LABELS.index(phase) + 1
     except ValueError:
         return 1
 
 
-def render_step_progress(step: str) -> None:
-    n = _step_number(step)
-    label = step.split("·")[-1].strip()
-    st.progress(min(n / 4.0, 1.0))
-    st.caption(f"**Step {n} of 4:** {label}")
+def render_pwc_brand_marks(*, sidebar: bool = False) -> None:
+    """PwC logo — trademark; see assets/README.md."""
+    if not PWC_LOGO_PATH.exists():
+        return
+    if sidebar:
+        st.image(str(PWC_LOGO_PATH), width=168)
+    else:
+        st.image(str(PWC_LOGO_PATH), width=88)
+
+
+def render_phase_progress(phase: str) -> None:
+    n = _phase_number(phase)
+    label = phase if phase == PHASE_OVERVIEW else phase.split("·")[-1].strip()
+    st.progress(min(n / float(len(PHASE_LABELS)), 1.0))
+    st.caption(f"**Phase {n} of {len(PHASE_LABELS)}:** {label}")
+
+
+def _phase_key(phase: str) -> str:
+    return {
+        PHASE_OVERVIEW: "overview",
+        PHASE_INGEST: "ingest",
+        PHASE_BASELINE: "baseline",
+        PHASE_BENCHMARK: "benchmark",
+        PHASE_INSIGHTS: "insights",
+        PHASE_ROADMAP: "roadmap",
+    }.get(phase, "overview")
 
 
 def render_summary_cards(result: dict[str, Any], network: str) -> None:
     dh = result.get("data_health") or {}
     score = dh.get("data_health_score", "—")
+    mc = dh.get("mapping_confidence_0_100", "—")
     idx = result["index_comparison"]
     opps = result["opportunities"]
     lo, hi = opps.get("total_savings_range", (0, 0))
@@ -201,31 +251,47 @@ def render_summary_cards(result: dict[str, Any], network: str) -> None:
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.metric("Data health", f"{score}/100" if score != "—" else "—", help="Quality, completeness, taxonomy coverage.")
+        st.metric(
+            "Data quality & coverage",
+            f"{score}/100" if score != "—" else "—",
+            help=f"Completeness, outliers, taxonomy signals. **Mapping confidence:** {mc}/100 — {dh.get('mapping_confidence_note', '')}"
+            if mc != "—"
+            else "Data health across ingested files.",
+        )
     with c2:
         if network != NETWORK_FIBER and site_v is not None:
             st.metric(
-                "vs peer median (site)",
+                "Cost gap vs peers (wireless site)",
                 f"{site_v:+.1f}%",
                 delta=f"{site_v:+.1f}%",
                 delta_color="inverse" if site_v > 3 else "normal",
+                help="Peer benchmark comparison — cost per site vs median of benchmark file.",
             )
         else:
-            st.metric("vs peer median (site)", "—")
+            st.metric("Cost gap vs peers (wireless site)", "—", help="Visible when wireless is in scope.")
     with c3:
         if vsim is not None and network != NETWORK_FIBER:
-            st.metric("vs similar peers", f"{vsim:+.1f}%", help=dyn.get("peer_group_label", ""))
+            st.metric(
+                "Similar-peer position",
+                f"{vsim:+.1f}%",
+                help=dyn.get("peer_group_label", "Clustered peer benchmark — not a single industry average."),
+            )
         else:
-            st.metric("vs similar peers", "—")
+            st.metric("Similar-peer position", "—")
     with c4:
-        st.metric("Modeled savings range", f"{_usd(lo)} – {_usd(hi)}", help="Illustrative, from initiative levers.")
+        st.metric(
+            "Quantified opportunity range",
+            f"{_usd(lo)} – {_usd(hi)}",
+            help="Modeled quantified savings opportunities across levers — for steering discussion, not a guarantee.",
+        )
 
 
 def main() -> None:
     _init_state()
 
     with st.sidebar:
-        st.markdown("### Network cost co-pilot")
+        render_pwc_brand_marks(sidebar=True)
+        st.markdown(f"### {PRODUCT_TITLE}")
         app_view = st.radio(
             "View",
             ["Analysis", "Help & instructions"],
@@ -242,55 +308,62 @@ def main() -> None:
         render_user_guide()
         return
 
-    st.markdown("### Network cost co-pilot")
-    st.caption(
-        "Scalable decision platform: smart ingestion, semantic metrics, dynamic benchmarks, explainable insights, "
-        "scenarios, and workflow — evolve from dashboard to optimization partner."
-    )
-    st.caption("📖 **Help:** Open the sidebar → **Help & instructions** for step-by-step user guide and tips.")
+    h1, h2 = st.columns([1, 10], gap="small")
+    with h1:
+        render_pwc_brand_marks(sidebar=False)
+    with h2:
+        st.markdown(f"### {PRODUCT_TITLE}")
+        st.caption(PRODUCT_SUBTITLE)
+        st.caption(SECURE_WORKSPACE_NOTE)
+    st.markdown(f"<div style='background:linear-gradient(135deg,#1e293b 0%,#334155 100%);color:#f8fafc;padding:1.5rem 1.75rem;border-radius:12px;margin:0.5rem 0 1.25rem 0;line-height:1.55;'>{VALUE_PROPOSITION}</div>", unsafe_allow_html=True)
+    st.info(f"{STORYLINE_COMPRESSION}\n\n{TRUST_STRIP}")
+    st.caption("📖 **User guide:** Sidebar → **Help & instructions**.")
 
-    step = st.radio(
-        "Guided steps",
-        STEP_LABELS,
+    phase = st.radio(
+        "Guided experience — PwC One Network Cost Intelligence",
+        PHASE_LABELS,
         horizontal=True,
         label_visibility="collapsed",
     )
-    render_step_progress(step)
+    render_phase_progress(phase)
 
     region = REGION_ALL
     network = NETWORK_COMBINED
-    if step != STEP_LABELS[0]:
+    if phase != PHASE_INGEST:
         fx1, fx2, _ = st.columns([1, 1, 2])
         with fx1:
             region = st.selectbox(
-                "Area focus",
+                "Geography scope",
                 [REGION_ALL, REGION_METRO, REGION_RURAL],
                 index=0,
-                help="Focus the view on metro/suburban sites, rural sites, or the full footprint.",
+                help="Focus on metro & suburban sites, rural sites, or the full footprint (where density data exists).",
             )
         with fx2:
             network = st.selectbox(
-                "Network focus",
+                "Network scope",
                 [NETWORK_COMBINED, NETWORK_WIRELESS, NETWORK_FIBER],
                 index=0,
-                help="Look at wireless only, fiber only, or the combined picture.",
+                help="Integrated baseline, wireless-only, or fiber-only view.",
             )
 
     w_raw = st.session_state.w_raw
     f_raw = st.session_state.f_raw
     b_raw = st.session_state.b_raw
 
-    if step == STEP_LABELS[0]:
-        st.markdown("#### Step 1 · Bring your data")
-        st.caption("Upload spreadsheets or use the example dataset — no training required.")
+    if phase == PHASE_INGEST:
+        st.markdown(f"#### {PHASE_INGEST}")
+        st.caption(
+            "AI-assisted alignment of fragmented extracts into a **common PwC network cost taxonomy** — low friction, high traceability."
+        )
 
         a, b = st.columns([1, 1])
         with a:
-            u_w = st.file_uploader("Wireless / mobile network costs (CSV or Excel)", type=["csv", "xlsx", "xls"])
-            u_f = st.file_uploader("Fiber / broadband costs (CSV or Excel)", type=["csv", "xlsx", "xls"])
-            u_b = st.file_uploader("Peer benchmark file (CSV or Excel)", type=["csv", "xlsx", "xls"])
+            st.markdown("**Drag and drop** or browse — CSV or Excel for each stream.")
+            u_w = st.file_uploader("Wireless / mobile network costs", type=["csv", "xlsx", "xls"])
+            u_f = st.file_uploader("Fiber / broadband costs", type=["csv", "xlsx", "xls"])
+            u_b = st.file_uploader("Peer benchmark comparison file", type=["csv", "xlsx", "xls"])
         with b:
-            if st.button("Try with example data", use_container_width=True):
+            if st.button("Use example telecom dataset", use_container_width=True, type="primary"):
                 try:
                     w, f, b = ingestion.load_default_dataframes()
                     st.session_state.w_raw = w
@@ -301,7 +374,8 @@ def main() -> None:
                 except FileNotFoundError as e:
                     st.error(str(e))
             st.info(
-                "Example data loads automatically on first visit. Upload all three files to replace it."
+                "Representative telecom data loads on first visit so you can experience the full **PwC One** storyline end-to-end. "
+                "Upload all three files when you are ready to substitute client-style extracts."
             )
 
         if u_w and u_f and u_b:
@@ -325,10 +399,10 @@ def main() -> None:
                     st.caption("Benchmarks")
                     st.dataframe(b_df.head(5), use_container_width=True, height=180)
 
-            with st.expander("Auto-mapping (semantic similarity to standard fields)", expanded=False):
+            with st.expander("AI-assisted field mapping (semantic similarity)", expanded=False):
                 st.caption(
-                    "Like a metrics layer in modern data platforms: we rank each source column against canonical roles "
-                    "using token + n-gram similarity (lightweight semantic match — no extra installs)."
+                    "**PwC One-style intelligent assistance:** each source column is ranked against the **standard network cost model** "
+                    "using semantic similarity (token + character n-grams). Use with **professional judgment** to confirm mappings."
                 )
                 sw2 = suggest_semantic_column_mapping(
                     list(w_df.columns),
@@ -359,10 +433,10 @@ def main() -> None:
                         top = ranks[0] if ranks else ("", 0)
                         st.write(f"**{col}** → best: `{top[0]}` ({top[1]:.0%})")
 
-            with st.expander("Column mapping (we pre-fill best guesses — adjust if needed)", expanded=False):
+            with st.expander("Confirm column mapping to PwC network cost taxonomy", expanded=False):
                 st.caption(
-                    "We match your columns to a simple standard so costs roll up cleanly. "
-                    "Leave a field blank if your file doesn’t have it."
+                    "Maps your fields to the **integrated taxonomy** (labor, vendor, backhaul, infrastructure, operations). "
+                    "Leave a field blank if not present. **PwC teams** validate mappings in live engagements."
                 )
                 map_uid = f"{u_w.name}|{u_f.name}|{u_b.name}"
                 st.markdown("**Wireless**")
@@ -384,29 +458,91 @@ def main() -> None:
                             st.session_state.f_raw = f_m
                             st.session_state.b_raw = b_m
                             st.session_state.using_example = False
-                            st.success("Data saved. Continue to **Spending**.")
+                            st.success("Data ingested and standardized. Continue to **Integrated cost baseline** or **Overview**.")
                             st.rerun()
                     except Exception as e:
                         st.error(f"Could not apply mapping: {e}")
 
         if st.session_state.get("using_example"):
-            st.warning("No file upload — **using the example telecom dataset** so you can explore the flow.")
+            st.warning(
+                "Session is using the **example telecom dataset** — suitable for executive demos. "
+                "Upload client extracts in **Ingest & standardize** when demonstrating with client-like data."
+            )
 
         st.stop()
 
-    # Steps 2–4 require data
-    if getattr(b_raw, "empty", True):
-        st.error("Benchmark file is missing or empty. Complete Step 1.")
-        st.stop()
-    if w_raw.empty and f_raw.empty:
-        st.error("Your tables look empty. Upload data in Step 1.")
+    if getattr(b_raw, "empty", True) or (w_raw.empty and f_raw.empty):
+        if phase == PHASE_OVERVIEW:
+            st.markdown("#### Executive overview")
+            st.caption(phase_headline("overview"))
+            st.warning(
+                "Connect **wireless**, **fiber**, and **peer benchmark** data under **Ingest & standardize** to populate this view."
+            )
+            st.markdown("**Demo storyline (live narrative):**")
+            for i, line in enumerate(DEMO_PHASES, 1):
+                st.markdown(f"{i}. {line}")
+            st.stop()
+        st.error("Benchmark and cost files are required. Complete **Ingest & standardize**.")
         st.stop()
 
     result = run_filtered_analysis(w_raw, f_raw, b_raw, region, network)
-    st.markdown("##### Summary")
+
+    if phase == PHASE_OVERVIEW:
+        st.markdown("#### Executive overview")
+        st.caption(phase_headline("overview"))
+        panel = build_executive_panel(result, network)
+        e1, e2, e3, e4 = st.columns(4)
+        lo, hi = panel["estimated_savings_range"]
+        idx_o = result["index_comparison"]
+        site_gap = idx_o.get("variance_pct_cost_per_site_vs_peer_median")
+        with e1:
+            if network != NETWORK_FIBER and site_gap is not None:
+                st.metric(
+                    "Total cost gap vs peers (wireless site)",
+                    f"{site_gap:+.1f}%",
+                    delta=f"{site_gap:+.1f}%",
+                    delta_color="inverse" if site_gap > 3 else "normal",
+                    help="Peer benchmark comparison — cost per site vs benchmark median.",
+                )
+            else:
+                st.metric("Total cost gap vs peers (wireless site)", "—", help="Add wireless to scope to view.")
+        top_lev = str(panel["top_optimization_lever"])
+        with e2:
+            st.metric(
+                "Top optimization lever",
+                (top_lev[:32] + "…") if len(top_lev) > 34 else top_lev,
+                help=top_lev,
+            )
+        with e3:
+            st.metric("Estimated savings range", f"{_usd(lo)} – {_usd(hi)}", help="Modeled quantified savings opportunities.")
+        with e4:
+            mc = panel.get("mapping_confidence")
+            dq = panel.get("data_health_score", "—")
+            st.metric(
+                "Data quality & mapping confidence",
+                f"{dq}/100 · {mc}/100" if mc is not None else f"{dq}/100",
+                help="Coverage, outliers, taxonomy; mapping confidence reflects canonical field strength.",
+            )
+        st.markdown(panel["cost_gap_summary"])
+        st.markdown("##### Priority actions (steering-committee ready)")
+        for pa in panel.get("priority_actions") or []:
+            st.markdown(f"- **{pa['title']}** — {pa['savings']}")
+        st.markdown("---")
+        st.markdown("##### Snapshot — same KPIs as deeper phases")
+        st.caption(
+            f"<span style='color:{RISK_COLOR};font-weight:600;'>Above peer</span> = cost pressure · "
+            f"<span style='color:{OPP_COLOR};font-weight:600;'>Below peer</span> = favorable position",
+            unsafe_allow_html=True,
+        )
+        render_summary_cards(result, network)
+        render_executive_summary(result)
+        st.stop()
+
+    st.markdown("##### Executive snapshot (this phase)")
+    st.caption(phase_headline(_phase_key(phase)))
     st.caption(
-        f"<span style='color:{RISK_COLOR};font-weight:600;'>Red</span> = risk vs peers · "
-        f"<span style='color:{OPP_COLOR};font-weight:600;'>Green</span> = opportunity / favorable in charts",
+        f"<span style='color:{RISK_COLOR};font-weight:600;'>Above peer</span> = cost pressure · "
+        f"<span style='color:{OPP_COLOR};font-weight:600;'>Below peer</span> = favorable",
         unsafe_allow_html=True,
     )
     render_summary_cards(result, network)
@@ -419,24 +555,29 @@ def main() -> None:
     w = base["wireless"]
     f = base["fiber"]
 
-    if step == STEP_LABELS[1]:
-        st.markdown("#### Step 2 · What are we spending?")
-        st.caption("The big picture before any peer comparison.")
+    if phase == PHASE_BASELINE:
+        st.markdown(f"#### {PHASE_BASELINE}")
+        st.caption(
+            "A single **integrated cost baseline** across wireless and fiber — business labels, AI-assisted intelligence, PwC judgment on interpretation."
+        )
 
         dh = result.get("data_health") or {}
-        st.markdown("##### Smart data layer · health")
-        col_h, col_w = st.columns([1, 2])
+        st.markdown("##### Data quality, mapping confidence & health")
+        col_h, col_h2, col_w = st.columns([1, 1, 2])
         with col_h:
             sc = dh.get("data_health_score", "—")
             band = dh.get("data_health_band", "")
-            st.metric("Data health score", f"{sc}/100", help="Missing values, outliers, taxonomy gaps, transport coverage.")
+            st.metric("Data quality score", f"{sc}/100", help="Completeness, outliers, taxonomy and transport signals.")
             st.caption(band or "")
+        with col_h2:
+            mc = dh.get("mapping_confidence_0_100", "—")
+            st.metric("Mapping confidence", f"{mc}/100" if mc != "—" else "—", help=dh.get("mapping_confidence_note", ""))
         with col_w:
             for wmsg in dh.get("warnings", [])[:6]:
                 st.warning(wmsg, icon="⚠️")
 
-        with st.expander("Semantic metrics layer (definitions)", expanded=False):
-            st.caption("Single source of truth for KPI formulas — extend in `metrics_layer.py`.")
+        with st.expander("Defined metrics (semantic layer — single source of truth)", expanded=False):
+            st.caption("Consistent KPI definitions across the engagement; extend in `metrics_layer.py` for your operating model.")
             sm = result.get("semantic_metrics") or {}
             rows = []
             for mid, m in sm.items():
@@ -459,12 +600,13 @@ def main() -> None:
 
         total = base["total_network_cost"]
         st.metric(
-            "Total annual network cost (in scope)",
+            "Integrated network cost (annual, in scope)",
             _usd(total),
             help=METRIC_HELP["total_cost"],
         )
 
         conc = top_concentration_phrase(base["category_shares"], top_n=2)
+        st.markdown("##### Narrative — integrated baseline")
         st.markdown(conc)
 
         c1, c2 = st.columns([1, 1])
@@ -488,7 +630,7 @@ def main() -> None:
                 ]
             )
             fig.update_layout(
-                title="How spend splits: wireless vs fiber",
+                title="Wireless vs fiber — share of integrated spend",
                 showlegend=False,
                 height=380,
                 margin=dict(t=50, b=20),
@@ -515,23 +657,29 @@ def main() -> None:
                 )
             )
             fig2.update_layout(
-                title="Where the money goes (share of total)",
+                title="Cost stack — labor, vendor, backhaul, infrastructure, operations",
                 height=380,
-                xaxis_title="Percent of total",
+                xaxis_title="Percent of integrated total",
                 margin=dict(t=50, b=20),
             )
             st.plotly_chart(fig2, use_container_width=True)
 
-        st.markdown("**So what?** Most programs land in labor, vendors, and backhaul — the next step shows how your mix compares.")
+        st.info(
+            "**PwC perspective:** Most integrated networks concentrate spend in **people & field**, **vendors**, and **backhaul** — "
+            "the **Peer benchmark comparison** phase quantifies how your profile compares."
+        )
 
-    elif step == STEP_LABELS[2]:
-        st.markdown("#### Step 3 · How do we compare?")
-        st.caption("Static peer medians plus **similar-peer** cohorts — red = higher than peers (risk), green = lower (favorable).")
+    elif phase == PHASE_BENCHMARK:
+        st.markdown(f"#### {PHASE_BENCHMARK}")
+        st.caption(
+            "**Peer benchmark comparison** with **similar-peer clustering** — above peer = cost pressure vs benchmark; below = favorable. "
+            "Charts use **red / green** to highlight position vs **peer median**."
+        )
 
         dyn = result.get("dynamic_peer_benchmark") or {}
         if dyn.get("narrative") and network != NETWORK_FIBER:
             peers_named = ", ".join(dyn.get("similar_peer_names") or [])
-            st.info(f"**Dynamic benchmark:** {dyn['narrative']}")
+            st.info(f"**Tailored peer benchmark (similar-peer clustering):** {dyn['narrative']}")
             if peers_named:
                 st.caption(f"Similar peer cohort: {peers_named}")
 
@@ -548,60 +696,27 @@ def main() -> None:
 
         with metrics[0]:
             st.metric(
-                "Cost per site (wireless)",
+                "Wireless — cost per site",
                 _usd(w["cost_per_site"]) if network != NETWORK_FIBER else "—",
-                delta=f"{site_v:+.1f}% vs peers" if network != NETWORK_FIBER and site_v is not None else None,
+                delta=f"{site_v:+.1f}% vs peer median" if network != NETWORK_FIBER and site_v is not None else None,
                 help=METRIC_HELP["cost_per_site"],
             )
         with metrics[1]:
             st.metric(
-                "Cost per unit of traffic (wireless)",
+                "Wireless — cost per TB (traffic-normalized)",
                 _usd(w["cost_per_tb"]) if network != NETWORK_FIBER else "—",
-                delta=f"{tb_v:+.1f}% vs peers" if network != NETWORK_FIBER and tb_v is not None else None,
+                delta=f"{tb_v:+.1f}% vs peer median" if network != NETWORK_FIBER and tb_v is not None else None,
                 help=METRIC_HELP["cost_per_tb"],
             )
         with metrics[2]:
             st.metric(
-                "Cost per home passed (fiber)",
+                "Fiber — cost per home passed",
                 _usd(f["cost_per_home_passed"]) if network != NETWORK_WIRELESS else "—",
-                help="Annual fiber-related spend divided by homes passed.",
+                help="Annual fiber-attributed spend divided by homes passed.",
             )
 
-        st.markdown("**So what?**")
+        st.markdown("##### Interpretation — peer benchmark comparison")
         st.markdown(benchmark_plain_insight(var, idx))
-
-        st.markdown("##### AI insight engine (prioritized)")
-        ranked = result.get("ranked_insights") or []
-        for card in ranked[:6]:
-            sev = card.get("severity") or "watch"
-            border = RISK_COLOR if sev == "risk" else (OPP_COLOR if sev == "opportunity" else NEUTRAL)
-            st.markdown(
-                f"<div style='border-left:4px solid {border};padding-left:12px;margin:10px 0;'>"
-                f"<strong>{card.get('title','')}</strong><br/><span style='color:#334155;'>{card.get('body','')}</span></div>",
-                unsafe_allow_html=True,
-            )
-            with st.expander(f"Why this insight? — {card.get('title', 'Detail')[:48]}"):
-                st.write("**Drivers considered:** " + "; ".join(card.get("drivers") or []))
-                st.write("**Data refs:** " + ", ".join(card.get("data_refs") or []))
-                if card["id"].startswith("var_"):
-                    cat = card["id"].replace("var_", "", 1)
-                    ex = explain_variance_row(var, cat)
-                    st.write(ex.get("summary", ""))
-                    for s in ex.get("steps", []):
-                        st.caption(s)
-                elif card["id"] == "idx_site":
-                    ex = explain_index_comparison(idx, "site")
-                    for s in ex.get("steps", []):
-                        st.caption(s)
-                elif card["id"] == "idx_tb":
-                    ex = explain_index_comparison(idx, "tb")
-                    for s in ex.get("steps", []):
-                        st.caption(s)
-                elif card["id"] == "similar_peers":
-                    st.caption(
-                        "Nearest peers = smallest Euclidean distance in z-scored log(cost/site), operator type, "
-                        "and density segment vs a profile inferred from your wireless/fiber mix."
-                    )
 
         if network != NETWORK_FIBER and med_site and med_tb:
             obs_site = w["cost_per_site"]
@@ -630,27 +745,107 @@ def main() -> None:
             )
             fig.update_layout(
                 barmode="group",
-                title="You vs peer median (wireless)",
+                title="Your network vs peer median — wireless intensity",
                 height=420,
                 legend=dict(orientation="h", yanchor="bottom", y=1.05),
                 margin=dict(t=60, b=20),
             )
             st.plotly_chart(fig, use_container_width=True)
             st.caption(
-                "Red (you) above the gray peer bar means you spend more on that metric; green means you spend less."
+                "**Above peer median** (red) = higher unit cost vs benchmark file; **green** = lower. "
+                "Use **AI-assisted gap insights** for root-cause narrative and suggested actions."
             )
 
-    elif step == STEP_LABELS[3]:
-        st.markdown("#### Step 4 · What should we do?")
-        st.caption("Prescriptive recommendations, collaboration workflow, scenarios, and chat — start with **Start here**.")
+    elif phase == PHASE_INSIGHTS:
+        st.markdown(f"#### {PHASE_INSIGHTS}")
+        st.caption(
+            "AI-assisted cost intelligence surfaces **structural drivers** of gaps; **PwC judgment** validates and frames implications for leadership."
+        )
+        ranked = result.get("ranked_insights") or []
+        for card in ranked[:8]:
+            sev = card.get("severity") or "watch"
+            border = RISK_COLOR if sev == "risk" else (OPP_COLOR if sev == "opportunity" else NEUTRAL)
+            st.markdown(
+                f"<div style='border-left:4px solid {border};padding:1rem 1rem 1rem 1.1rem;margin:12px 0;background:#fafafa;border-radius:0 8px 8px 0;'>"
+                f"<div style='font-size:0.75rem;text-transform:uppercase;letter-spacing:0.04em;color:#64748b;'>Insight</div>"
+                f"<strong style='font-size:1.05rem;color:#0f172a;'>{card.get('title','')}</strong><br/>"
+                f"<span style='color:#334155;line-height:1.5;'>{card.get('narrative') or card.get('body','')}</span><br/><br/>"
+                f"<span style='color:#0f172a;'><b>Why this matters</b></span><br/><span style='color:#475569;'>{card.get('why_matters','')}</span><br/><br/>"
+                f"<span style='color:#0f172a;'><b>What the data supports</b></span><br/><span style='color:#475569;'>{card.get('data_supports','')}</span><br/><br/>"
+                f"<span style='color:#0f172a;'><b>Suggested action</b></span><br/><span style='color:#475569;'>{card.get('suggested_action','')}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+            with st.expander(f"Why this insight? — traceability & benchmark logic — {card.get('title', '')[:36]}"):
+                st.caption(
+                    "**AI accelerates pattern detection; PwC teams validate** mappings, benchmarks, and business context before client decisions."
+                )
+                st.write("**Drivers considered:** " + "; ".join(card.get("drivers") or []))
+                st.write("**Data references:** " + ", ".join(card.get("data_refs") or []))
+                if card["id"].startswith("var_"):
+                    cat = card["id"].replace("var_", "", 1)
+                    ex = explain_variance_row(var, cat)
+                    st.write(ex.get("summary", ""))
+                    for s in ex.get("steps", []):
+                        st.caption(s)
+                elif card["id"] == "idx_site":
+                    ex = explain_index_comparison(idx, "site")
+                    for s in ex.get("steps", []):
+                        st.caption(s)
+                elif card["id"] == "idx_tb":
+                    ex = explain_index_comparison(idx, "tb")
+                    for s in ex.get("steps", []):
+                        st.caption(s)
+                elif card["id"] == "similar_peers":
+                    st.caption(
+                        "Similar peers = nearest neighbors in **z-scored log(cost/site)**, **operator type**, and **density segment** "
+                        "vs a profile inferred from your wireless/fiber mix."
+                    )
+
+    elif phase == PHASE_ROADMAP:
+        st.markdown(f"#### {PHASE_ROADMAP}")
+        st.caption(
+            "**Quantified savings opportunities**, sequencing, scenarios, and **prioritized action roadmap** — structured for steering committees. "
+            "**PwC judgment** applied to AI-generated findings."
+        )
 
         lo, hi = opps["total_savings_range"]
         st.success(
-            f"**Estimated savings range (illustrative):** {_usd(lo)} – {_usd(hi)} per year. "
+            f"**Quantified savings opportunities (modeled range):** {_usd(lo)} – {_usd(hi)} annualized — "
             f"{METRIC_HELP['savings_range']}"
         )
 
-        with st.expander("Executive story mode (slide-ready)", expanded=False):
+        st.markdown("##### Prioritized roadmap — sequencing & impact")
+        st.caption("**Quick wins** = higher feasibility / shorter time-to-value; **medium-term** and **longer-cycle** for steering discussion.")
+        qw = opps.get("quick_wins") or []
+        lt = opps.get("longer_term") or []
+        ids_q = {x.get("lever_id") for x in qw}
+        ids_l = {x.get("lever_id") for x in lt}
+        medium = [
+            i
+            for i in (opps.get("initiatives") or [])
+            if i.get("lever_id") not in ids_q and i.get("lever_id") not in ids_l
+        ]
+
+        def _roadmap_rows(items: list) -> None:
+            for it in items:
+                st.markdown(
+                    f"- **{it.get('business_title') or it.get('title')}** — {_usd(it.get('savings_low_usd'))}–{_usd(it.get('savings_high_usd'))} · "
+                    f"feasibility **{it.get('effort')}** · time to value **{it.get('time_to_value', it.get('time_to_implement', '—'))}**"
+                )
+
+        r1, r2, r3 = st.columns(3)
+        with r1:
+            st.markdown("**Phase A — Quick wins**")
+            _roadmap_rows(qw)
+        with r2:
+            st.markdown("**Phase B — Medium-term**")
+            _roadmap_rows(medium)
+        with r3:
+            st.markdown("**Phase C — Longer-cycle**")
+            _roadmap_rows(lt)
+
+        with st.expander("Executive summary — export layout (steering committee)", expanded=False):
             story = executive_story_mode(
                 base,
                 idx,
@@ -661,8 +856,8 @@ def main() -> None:
             )
             st.markdown(f"### {story['title']}")
             st.markdown("**Key findings**")
-            for f in story.get("findings", []):
-                st.markdown(f"- {f}")
+            for fl in story.get("findings", []):
+                st.markdown(f"- {fl}")
             st.markdown("**Top opportunities**")
             for o in story.get("opportunities", []):
                 st.markdown(f"- {o}")
@@ -670,17 +865,19 @@ def main() -> None:
             st.markdown(story.get("data_health", ""))
             st.caption(story.get("footer", ""))
 
-        st.markdown("##### Opportunity simulation")
-        st.caption("Adjust levers — impact updates in real time (category-level model).")
+        st.markdown("##### Scenario modeling — savings assumptions")
+        st.caption(
+            "Stress-test **quantified savings opportunities** under explicit assumptions; **PwC teams** calibrate scenarios with client finance."
+        )
         s1, s2, s3 = st.columns(3)
         with s1:
-            v_cut = st.slider("Vendor / third-party reduction %", 0, 25, 0, help="Applied to vendor taxonomy bucket.")
-            l_prod = st.slider("Labor productivity gain %", 0, 25, 0, help="Modeled as effective labor cost reduction.")
+            v_cut = st.slider("Vendor optimization — cost reduction %", 0, 25, 0, help="Applied to vendor & supplier taxonomy bucket.")
+            l_prod = st.slider("Workforce efficiency — productivity gain %", 0, 25, 0, help="Modeled as effective labor cost reduction.")
         with s2:
-            t_cut = st.slider("Transport / backhaul reduction %", 0, 25, 0)
-            i_cut = st.slider("Infrastructure reduction %", 0, 20, 0)
+            t_cut = st.slider("Backhaul optimization — reduction %", 0, 25, 0)
+            i_cut = st.slider("Infrastructure rationalization — reduction %", 0, 20, 0)
         with s3:
-            n_cut = st.slider("NetOps / O&M efficiency %", 0, 20, 0)
+            n_cut = st.slider("Network operations improvement — efficiency %", 0, 20, 0)
         scen = run_scenario(
             base,
             vendor_cost_reduction_pct=v_cut / 100.0,
@@ -690,9 +887,9 @@ def main() -> None:
             netops_efficiency_pct=n_cut / 100.0,
         )
         st.metric(
-            "Scenario savings (annual)",
+            "Modeled scenario impact (annual)",
             _usd(scen["total_savings_usd"]),
-            help="Illustrative; see assumptions below.",
+            help="Directional; PwC validates assumptions with client finance and network engineering.",
         )
         ex = scen["kpi_deltas"]["cost_per_site"]
         if ex["before"] > 0:
@@ -702,38 +899,54 @@ def main() -> None:
             )
         st.caption(scen.get("assumptions", ""))
 
-        st.markdown("##### Recommendation engine")
-        top = opps.get("top_5", [])[:5]
-        for i, item in enumerate(top):
-            title = item.get("business_title") or item.get("title")
-            effort = item.get("effort", "Medium")
-            lid = item.get("lever_id") or str(i)
-            tag = ""
-            if i < 2:
-                tag = '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:6px;font-size:0.8rem;font-weight:600;">Start here</span>'
-            savings_txt = f"{_usd(item['savings_low_usd'])} – {_usd(item['savings_high_usd'])}"
-            conf = item.get("confidence_0_100", "—")
-            cx = item.get("complexity_tier", "Medium")
-            tim = item.get("time_to_implement", "—")
-            action = item.get("recommended_action", "")
-            body = (
-                f'<div style="border:1px solid #e5e7eb;border-radius:12px;padding:1rem 1.1rem;margin-bottom:0.75rem;background:#fff;">'
-                f'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
-                f'<div style="font-size:1.05rem;font-weight:600;color:#111827;">{title}</div>{tag}</div>'
-                f'<div style="color:#475569;margin-top:0.35rem;">Estimated savings: <strong>{savings_txt}</strong> · '
-                f'Effort: <strong>{effort}</strong> · Complexity: <strong>{cx}</strong> · '
-                f'Time: <strong>{tim}</strong> · Confidence: <strong>{conf}/100</strong></div>'
-                f'<div style="color:#334155;margin-top:0.5rem;font-size:0.95rem;">{action}</div></div>'
-            )
-            st.markdown(body, unsafe_allow_html=True)
-            with st.expander(f"Explain · {title[:40]}"):
-                exo = explain_opportunity(item, base)
-                st.write(exo.get("summary", ""))
-                for s in exo.get("steps", []):
-                    st.caption(s)
+        st.markdown("##### Quantified opportunities — by category")
+        st.caption(
+            "Initiatives grouped for **vendor**, **workforce**, **backhaul**, **infrastructure**, and **network operations** — "
+            "each with **feasibility**, **time to value**, and **confidence**."
+        )
+        by_cat: dict[str, list] = defaultdict(list)
+        for ini in sorted(opps.get("initiatives") or [], key=lambda x: -x.get("priority_score", 0)):
+            by_cat[ini.get("pwc_category") or "Cost optimization"].append(ini)
 
-        st.markdown("##### Workflow & collaboration")
-        st.caption("Tag opportunities, assign owners, track status (session-local prototype).")
+        top = opps.get("top_5", [])[:5]
+        top_ids = {x.get("lever_id") for x in top[:2]}
+        shown = 0
+        for cat_name in sorted(by_cat.keys()):
+            st.markdown(f"###### {cat_name}")
+            for i, item in enumerate(by_cat[cat_name]):
+                shown += 1
+                title = item.get("business_title") or item.get("title")
+                effort = item.get("effort", "Medium")
+                lid = item.get("lever_id") or str(shown)
+                tag = ""
+                if item.get("lever_id") in top_ids:
+                    tag = '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:6px;font-size:0.8rem;font-weight:600;">Prioritize</span>'
+                savings_txt = f"{_usd(item['savings_low_usd'])} – {_usd(item['savings_high_usd'])}"
+                conf = item.get("confidence_0_100", "—")
+                cx = item.get("complexity_tier", "Medium")
+                ttv = item.get("time_to_value") or item.get("time_to_implement", "—")
+                desc = item.get("initiative_description") or ""
+                action = item.get("recommended_action", "")
+                body = (
+                    f'<div style="border:1px solid #e5e7eb;border-radius:12px;padding:1rem 1.1rem;margin-bottom:0.75rem;background:#fff;">'
+                    f'<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+                    f'<div style="font-size:1.05rem;font-weight:600;color:#111827;">{title}</div>{tag}</div>'
+                    f'<div style="color:#64748b;margin-top:0.25rem;font-size:0.92rem;">{desc}</div>'
+                    f'<div style="color:#475569;margin-top:0.35rem;">Savings range: <strong>{savings_txt}</strong> · '
+                    f'Feasibility: <strong>{effort}</strong> · Complexity: <strong>{cx}</strong> · '
+                    f'Time to value: <strong>{ttv}</strong> · Confidence: <strong>{conf}/100</strong></div>'
+                    f'<div style="color:#334155;margin-top:0.5rem;font-size:0.95rem;"><b>Recommended move:</b> {action}</div></div>'
+                )
+                st.markdown(body, unsafe_allow_html=True)
+                with st.expander(f"Traceability · {title[:40]}"):
+                    st.caption("**PwC judgment** validates initiative sizing, feasibility, and client readiness.")
+                    exo = explain_opportunity(item, base)
+                    st.write(exo.get("summary", ""))
+                    for s in exo.get("steps", []):
+                        st.caption(s)
+
+        st.markdown("##### Client workspace — owners & status")
+        st.caption("Session workspace to **tag**, **assign**, and **track** initiatives (full PwC One deployments persist to secure collaboration).")
         wf = st.session_state.workflow
         for i, item in enumerate(top):
             lid = item.get("lever_id") or str(i)
@@ -757,12 +970,14 @@ def main() -> None:
             wf[lid] = {"tags": tags, "owner": owner, "status": status}
         st.session_state.workflow = wf
 
-        st.markdown("##### Ask the co-pilot")
-        st.caption('Examples: "Why are my costs higher?" · "Where is the biggest savings opportunity?"')
+        st.markdown("##### Natural language — ask the intelligence layer")
+        st.caption(
+            'Examples: **"Why are my costs higher?"** · **"Where is the biggest savings opportunity?"** · **"What should we do first?"**'
+        )
         for msg in st.session_state.chat_messages[-12:]:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
-        q = st.chat_input("Ask about this dataset…")
+        q = st.chat_input("Ask a question about your integrated baseline and peer benchmarks…")
         if q:
             st.session_state.chat_messages.append({"role": "user", "content": q})
             ans = answer_question(
@@ -778,7 +993,7 @@ def main() -> None:
 
         st.markdown("---")
         st.caption(
-            "Optional: set `OPENAI_API_KEY` for richer LLM narratives in `insights.py` — rule-based paths work offline."
+            "Optional **OpenAI** integration (`OPENAI_API_KEY`) can extend narrative depth; **this experience is fully usable** with rule-based, traceable intelligence."
         )
 
 

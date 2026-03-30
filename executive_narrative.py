@@ -35,25 +35,32 @@ def benchmark_plain_insight(
 
     if worst_cat == "Transport / Backhaul" and worst_val > 8:
         return (
-            f"Backhaul costs are about **{worst_val:.0f}%** above peer levels — often tied to fewer routes and less vendor leverage in rural areas."
+            f"**Backhaul & connectivity** appears **~{worst_val:.0f}% above peer mix** — a pattern we often associate with **rural routing complexity** "
+            f"and **limited pricing leverage** on dedicated circuits."
         )
     if worst_cat and worst_val > 10:
         name = CATEGORY_BUSINESS_NAME.get(worst_cat, worst_cat)
-        return f"**{name}** is a standout gap vs peers (roughly **{worst_val:+.0f}%** vs peer mix) — worth a focused review."
+        return (
+            f"**{name}** stands **materially above peer benchmark mix** (~**{worst_val:+.0f}%**) — warrants a **focused diagnostic** with network and finance."
+        )
 
     if site_v is not None and abs(site_v) >= 5:
         direction = "higher" if site_v > 0 else "lower"
         return (
-            f"Your **cost per site** is about **{abs(site_v):.0f}% {direction}** than the peer median — check vendors, leases, and field work mix."
+            f"Wireless **cost per site** is about **{abs(site_v):.0f}% {direction}** than **peer median** — **vendor/OEM**, **leases**, and **field operating model** "
+            f"typically explain the gap."
         )
 
     if tb_v is not None and abs(tb_v) >= 8:
         direction = "higher" if tb_v > 0 else "lower"
         return (
-            f"**Backhaul and connectivity** (cost per unit of traffic) looks **{direction}** than peers by about **{abs(tb_v):.0f}%** — routing and contracts are the usual levers."
+            f"**Traffic-normalized** wireless cost is **{direction}** peers by ~**{abs(tb_v):.0f}%** — consistent with **backhaul architecture**, **routing**, and **circuit economics**."
         )
 
-    return "Overall, your cost profile is **close to peer norms** — prioritize the savings ideas on the last step for the biggest impact."
+    return (
+        "Overall, the **integrated baseline** sits **near peer norms** on headline metrics — still review **quantified savings opportunities** "
+        "and **category mix** for execution upside."
+    )
 
 
 def executive_summary_lines(
@@ -76,8 +83,8 @@ def executive_summary_lines(
     else:
         peer_line = "Your **cost per site** is **in line** with the peer median (wireless)."
 
-    savings_line = f"Estimated savings opportunity: **{_usd_short(lo)}–{_usd_short(hi)}** per year (illustrative range)."
-    top_line = f"Top opportunity: **{top_title}**."
+    savings_line = f"**Quantified savings opportunities (modeled):** **{_usd_short(lo)}–{_usd_short(hi)}** per year — for steering discussion with finance."
+    top_line = f"**Lead optimization lever:** **{top_title}**."
 
     return {
         "peer": peer_line,
@@ -125,10 +132,10 @@ def executive_story_mode(
     score = data_health.get("data_health_score", "—")
 
     return {
-        "title": "Executive summary — network cost co-pilot",
+        "title": "PwC One — Network Cost Intelligence · executive summary",
         "findings": findings[:3],
         "opportunities": opportunities_lines[:3],
-        "estimated_savings": f"{_usd_short(lo)} – {_usd_short(hi)} per year (modeled levers, illustrative)",
-        "data_health": f"Data health score: **{score}/100** ({data_health.get('data_health_band', '')})",
-        "footer": "Consistent color logic in-app: red = risk vs peers, green = opportunity / favorable position.",
+        "estimated_savings": f"{_usd_short(lo)} – {_usd_short(hi)} per year — **quantified savings opportunities** (modeled; PwC validates with client).",
+        "data_health": f"**Data quality & coverage:** **{score}/100** ({data_health.get('data_health_band', '')})",
+        "footer": "Visual logic: **above peer** = cost pressure vs benchmark; **below peer** = favorable. **AI-assisted** analysis with **PwC judgment**.",
     }

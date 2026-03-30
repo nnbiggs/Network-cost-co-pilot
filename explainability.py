@@ -74,7 +74,7 @@ def explain_opportunity(initiative: dict[str, Any], baseline: dict[str, Any]) ->
             + _usd(total)
             + "** total).",
             "3. Apply savings % band × feasibility weight to produce low/high range.",
-            f"4. **Confidence {initiative.get('confidence_0_100', '—')}/100** reflects data completeness and lever history (heuristic).",
+            f"4. **Confidence {initiative.get('confidence_0_100', '—')}/100** reflects data completeness and lever history (heuristic); **PwC judgment** calibrates for client context.",
         ],
         "inputs": {
             "addressable_cost_usd": initiative.get("addressable_cost_usd"),

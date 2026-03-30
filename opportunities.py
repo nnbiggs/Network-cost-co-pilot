@@ -29,6 +29,8 @@ LEVERS = [
         "complexity_tier": "Medium",
         "time_to_implement": "4–9 months",
         "recommended_action": "Rationalize dispatch territories, tighten contractor scopes, pilot productivity metrics by crew.",
+        "pwc_category": "Workforce efficiency",
+        "initiative_description": "Align crew productivity, contractor scope, and dispatch design to reduce unit labor cost while protecting service levels.",
     },
     {
         "id": "vendor",
@@ -42,6 +44,8 @@ LEVERS = [
         "complexity_tier": "High",
         "time_to_implement": "6–18 months",
         "recommended_action": "Run should-cost models on top MSOC/OEM categories; bundle RFPs where volume permits.",
+        "pwc_category": "Vendor optimization",
+        "initiative_description": "Consolidate vendor relationships and commercial terms where fragmentation drives premium pricing.",
     },
     {
         "id": "transport",
@@ -55,6 +59,8 @@ LEVERS = [
         "complexity_tier": "Medium",
         "time_to_implement": "5–12 months",
         "recommended_action": "Refresh transport topology; benchmark circuit rates; prioritize high-cost rural links.",
+        "pwc_category": "Backhaul optimization",
+        "initiative_description": "Reduce unit connectivity cost through architecture refresh, circuit repricing, and route rationalization.",
     },
     {
         "id": "infrastructure",
@@ -68,6 +74,8 @@ LEVERS = [
         "complexity_tier": "High",
         "time_to_implement": "12–36 months",
         "recommended_action": "Portfolio review: co-locate, decommission low-value sites, renegotiate escalators.",
+        "pwc_category": "Infrastructure rationalization",
+        "initiative_description": "Simplify the physical footprint and lease structure where site count and colocation economics allow.",
     },
     {
         "id": "netops",
@@ -81,6 +89,8 @@ LEVERS = [
         "complexity_tier": "Low",
         "time_to_implement": "3–8 months",
         "recommended_action": "Automate alarms/tickets, tighten spares policy, energy optimization on critical sites.",
+        "pwc_category": "Network operations improvement",
+        "initiative_description": "Lean out day-to-day O&M through automation, spares discipline, and energy efficiency on critical assets.",
     },
 ]
 
@@ -146,6 +156,9 @@ def build_opportunities(
                 "time_to_implement": lever.get("time_to_implement", "6–12 months"),
                 "recommended_action": lever.get("recommended_action", ""),
                 "confidence_0_100": confidence,
+                "pwc_category": lever.get("pwc_category", "Cost optimization"),
+                "initiative_description": lever.get("initiative_description", ""),
+                "time_to_value": lever.get("time_to_implement", "6–12 months"),
             }
         )
 

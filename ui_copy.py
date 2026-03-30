@@ -19,7 +19,7 @@ METRIC_HELP: dict[str, str] = {
     "wireless_fiber_split": "Share of total cost between wireless network and fiber broadband.",
     "vs_peers": "Difference compared with the median of similar operators in the benchmark file.",
     "backhaul_gap": "How much more (or less) of your spend sits in backhaul & connectivity versus peers.",
-    "savings_range": "Illustrative savings if typical initiatives succeed — not a guarantee.",
+    "savings_range": "Modeled quantified savings opportunities — PwC validates scope and feasibility with client teams; not a guarantee.",
     "effort": "Low = faster to execute; High = more time, stakeholders, or contract changes.",
 }
 

@@ -50,6 +50,44 @@ def _transport_missing_by_site(w_norm: pd.DataFrame) -> Optional[float]:
     return float(max(0.0, min(1.0, missing_share)))
 
 
+def _mapping_confidence(w_raw: pd.DataFrame, w_normalized: pd.DataFrame) -> tuple[float, str]:
+    """
+    Heuristic 0–100: canonical field coverage and taxonomy mapping strength.
+    Higher = more fields populated and fewer unmapped category lines.
+    """
+    score = 88.0
+    detail_parts: list[str] = []
+    if w_raw.empty:
+        return 55.0, "No wireless source rows — mapping confidence not fully assessable."
+
+    key_cols = [
+        ("Amount_USD", "Spend amount"),
+        ("Site_ID", "Site identifier"),
+        ("Cost_Line_Description", "Line description (taxonomy)"),
+        ("Traffic_TB_annual", "Annual traffic (TB)"),
+    ]
+    for col, label in key_cols:
+        if col not in w_raw.columns:
+            score -= 10
+            detail_parts.append(f"{label} column not mapped")
+        else:
+            miss = float(w_raw[col].isna().mean())
+            if miss > 0.2:
+                score -= min(12.0, miss * 25)
+                detail_parts.append(f"{label}: {miss*100:.0f}% missing")
+
+    if w_normalized is not None and not w_normalized.empty and "standard_category" in w_normalized.columns:
+        om = w_normalized["standard_category"].isna().mean()
+        if om > 0.03:
+            score -= min(15.0, om * 80)
+            detail_parts.append(f"Taxonomy: {om*100:.0f}% lines without category")
+
+    score = float(max(42.0, min(98.0, round(score, 1))))
+    band = "High" if score >= 82 else ("Moderate" if score >= 68 else "Review mappings")
+    detail = "; ".join(detail_parts) if detail_parts else "Core wireless fields present; taxonomy coverage strong."
+    return score, f"{band} — {detail}"
+
+
 def compute_data_health(
     w_raw: pd.DataFrame,
     f_raw: pd.DataFrame,
@@ -128,9 +166,13 @@ def compute_data_health(
     score = float(max(0.0, min(100.0, round(score, 1))))
     band = "Strong" if score >= 80 else ("Fair" if score >= 60 else "Needs attention")
 
+    map_conf, map_note = _mapping_confidence(w_raw, w_normalized)
+
     return {
         "data_health_score": score,
         "data_health_band": band,
+        "mapping_confidence_0_100": map_conf,
+        "mapping_confidence_note": map_note,
         "warnings": warnings,
         "checks": checks,
     }
